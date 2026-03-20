@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Project Board</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream:   #F4F1DE;
+      --coral:   #E07A5F;
+      --indigo:  #3D405B;
+      --teal:    #81B29A;
+      --gold:    #F2CC8F;
+      --card-bg: #FDFCF6;
+      --shadow:  0 2px 12px rgba(61,64,91,0.10);
+      --radius:  12px;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background-color: var(--cream);
+      color: var(--indigo);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--indigo);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 3px solid var(--coral);
+    }
+
+    header h1 {
+      font-family: 'Lora', serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--cream);
+      letter-spacing: 0.02em;
+    }
+
+    header .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--coral);
+    }
+
+    #db-status {
+      margin-left: auto;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--cream);
+      opacity: 0.7;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #db-status .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #888;
+      transition: background 0.3s;
+    }
+
+    #db-status.connected .status-dot { background: var(--teal); }
+    #db-status.error     .status-dot { background: var(--coral); }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      padding: 18px 32px 0;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .toolbar input {
+      flex: 1;
+      min-width: 200px;
+      padding: 10px 16px;
+      border: 2px solid transparent;
+      border-radius: var(--radius);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.875rem;
+      color: var(--indigo);
+      background: var(--card-bg);
+      box-shadow: var(--shadow);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .toolbar input:focus { border-color: var(--teal); }
+    .toolbar input::placeholder { color: #aaa; }
+
+    .toolbar button {
+      padding: 10px 22px;
+      background: var(--coral);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .toolbar button:hover   { background: #c9694f; }
+    .toolbar button:active  { transform: scale(0.97); }
+    .toolbar button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+
+    /* ── Board ── */
+    .board {
+      display: flex;
+      gap: 20px;
+      padding: 24px 32px 40px;
+      overflow-x: auto;
+      flex: 1;
+    }
+
+    /* ── Column ── */
+    .column {
+      flex: 1;
+      min-width: 240px;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      background: rgba(255,255,255,0.55);
+      border-radius: 16px;
+      border: 1px solid rgba(61,64,91,0.10);
+      backdrop-filter: blur(4px);
+      box-shadow: 0 4px 24px rgba(61,64,91,0.07);
+      overflow: hidden;
+    }
+
+    .column[data-status="todo"]        .col-header { border-top: 4px solid var(--gold); }
+    .column[data-status="in_progress"] .col-header { border-top: 4px solid var(--coral); }
+    .column[data-status="in_review"]   .col-header { border-top: 4px solid var(--teal); }
+    .column[data-status="done"]        .col-header { border-top: 4px solid var(--indigo); }
+
+    .col-header {
+      padding: 16px 18px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .col-title {
+      font-family: 'Lora', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--indigo);
+      flex: 1;
+    }
+
+    .col-count {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--indigo);
+      border-radius: 20px;
+      padding: 2px 9px;
+      opacity: 0.75;
+    }
+
+    .col-icon { font-size: 1rem; }
+    .column[data-status="todo"]        .col-icon { color: var(--gold); }
+    .column[data-status="in_progress"] .col-icon { color: var(--coral); }
+    .column[data-status="in_review"]   .col-icon { color: var(--teal); }
+    .column[data-status="done"]        .col-icon { color: var(--indigo); }
+
+    .col-divider {
+      height: 1px;
+      background: rgba(61,64,91,0.08);
+      margin: 0 14px;
+    }
+
+    /* ── Drop Zone ── */
+    .drop-zone {
+      flex: 1;
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 120px;
+      transition: background 0.2s;
+      border-radius: 0 0 16px 16px;
+    }
+
+    .drop-zone.drag-over { background: rgba(129,178,154,0.15); }
+
+    /* ── Empty State ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 16px;
+      color: #bbb;
+      gap: 8px;
+      text-align: center;
+    }
+
+    .empty-state .empty-icon { font-size: 2rem; opacity: 0.5; }
+    .empty-state p { font-size: 0.78rem; }
+
+    /* ── Loading State ── */
+    .loading-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .spinner {
+      width: 22px; height: 22px;
+      border: 2px solid rgba(129,178,154,0.3);
+      border-top-color: var(--teal);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Task Card ── */
+    .task-card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      padding: 13px 15px;
+      box-shadow: var(--shadow);
+      cursor: grab;
+      border: 1.5px solid transparent;
+      transition: box-shadow 0.18s, border-color 0.18s, transform 0.15s, opacity 0.15s;
+      animation: cardIn 0.22s ease;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .task-card:hover {
+      box-shadow: 0 6px 20px rgba(61,64,91,0.15);
+      border-color: var(--teal);
+      transform: translateY(-1px);
+    }
+
+    .task-card:active  { cursor: grabbing; }
+    .task-card.dragging { opacity: 0.4; transform: scale(0.97); }
+
+    .task-title {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--indigo);
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+
+    .task-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .task-id {
+      font-size: 0.68rem;
+      color: #aaa;
+      font-weight: 500;
+    }
+
+    .task-delete {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ccc;
+      font-size: 0.8rem;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+    }
+
+    .task-delete:hover { color: var(--coral); background: rgba(224,122,95,0.1); }
+
+    /* ── Drag Placeholder ── */
+    .drag-placeholder {
+      border: 2px dashed var(--teal);
+      border-radius: 10px;
+      height: 52px;
+      background: rgba(129,178,154,0.08);
+      pointer-events: none;
+      animation: placeholderPulse 1s ease-in-out infinite alternate;
+    }
+
+    @keyframes placeholderPulse {
+      from { opacity: 0.5; }
+      to   { opacity: 1; }
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: var(--indigo);
+      color: var(--cream);
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      box-shadow: 0 8px 30px rgba(61,64,91,0.25);
+      transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    #toast.show       { transform: translateX(-50%) translateY(0); }
+    #toast.error-toast { background: var(--coral); }
+
+    /* ── Responsive ── */
+    @media (max-width: 700px) {
+      .board   { flex-direction: column; padding: 16px; }
+      .column  { max-width: 100%; }
+      header   { padding: 14px 18px; }
+      header h1 { font-size: 1.2rem; }
+      .toolbar { padding: 12px 16px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="dot"></span>
+  <h1>Project Board</h1>
+  <div id="db-status">
+    <span class="status-dot"></span>
+    <span id="db-status-label">Connecting…</span>
+  </div>
+</header>
+
+<div class="toolbar">
+  <input type="text" id="new-task-input" placeholder="Add a new task..." maxlength="120" />
+  <button id="add-btn" onclick="addTask()">+ Add Task</button>
+</div>
+
+<div class="board" id="board"></div>
+<div id="toast"></div>
+
+<script>
+  // ── Supabase Setup ─────────────────────────────────────
+  const SUPABASE_URL = 'https://vkkrsxnbanujzdqkaqfr.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZra3JzeG5iYW51anpkcWthcWZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTc0MDIsImV4cCI6MjA4OTQ3MzQwMn0.IfDChzFqlh9FLoTc2ey4ICQtrpuiEekQA2G-0Zs6WvA';
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ── Columns Config ─────────────────────────────────────
+  const COLUMNS = [
+    { id: 'todo',        label: 'To Do',      icon: '○' },
+    { id: 'in_progress', label: 'In Progress', icon: '◑' },
+    { id: 'in_review',   label: 'In Review',   icon: '◷' },
+    { id: 'done',        label: 'Done',        icon: '●' },
+  ];
+
+  // ── State ──────────────────────────────────────────────
+  let tasks = [];
+  let currentUser = null;
+  let draggedId = null;
+  let placeholder = null;
+  let currentDropZone = null;
+
+  // ── DB Status ──────────────────────────────────────────
+  function setStatus(state, label) {
+    document.getElementById('db-status').className = state;
+    document.getElementById('db-status-label').textContent = label;
+  }
+
+  // ── Auth: sign in anonymously (or resume existing session) ──
+  /*
+  ensureAuth() runs before every load. It checks if a session already exists in the browser, 
+  and if not, it calls signInAnonymously(). Supabase stores the session in localStorage 
+  automatically, so returning visitors keep the same identity and see their own tasks
+
+  currentUser is stored after sign-in, and its .id is passed as user_id when inserting new tasks
+
+  The RLS policies are set in SQL editor in supabase so that users can only read/write rows where 
+  user_id = auth.uid(). The code never has to filter manually, the database handles it
+  */
+  async function ensureAuth() {
+    // Check for an existing session first
+    const { data: { session } } = await db.auth.getSession();
+    if (session?.user) {
+      currentUser = session.user;
+      return;
+    }
+    // No session — create a new anonymous one
+    const { data, error } = await db.auth.signInAnonymously();
+    if (error) throw error;
+    currentUser = data.user;
+  }
+
+  // ── Load from Supabase ─────────────────────────────────
+  async function loadTasks() {
+    showLoadingColumns();
+    try {
+      await ensureAuth();
+
+      const { data, error } = await db
+        .from('tasks')
+        .select('*')
+        .order('order', { ascending: true });
+
+      if (error) throw error;
+
+      tasks = data || [];
+      setStatus('connected', 'Connected');
+    } catch (err) {
+      console.error('Load error:', err);
+      setStatus('error', 'Connection error');
+      showToast('Could not load tasks — check console.', true);
+      tasks = [];
+    }
+    buildBoard();
+  }
+
+  // ── Show spinners while loading ────────────────────────
+  function showLoadingColumns() {
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    COLUMNS.forEach(col => {
+      const el = document.createElement('div');
+      el.className = 'column';
+      el.dataset.status = col.id;
+      el.innerHTML = `
+        <div class="col-header">
+          <span class="col-icon">${col.icon}</span>
+          <span class="col-title">${col.label}</span>
+          <span class="col-count">–</span>
+        </div>
+        <div class="col-divider"></div>
+        <div class="drop-zone"><div class="loading-state"><div class="spinner"></div></div></div>
+      `;
+      board.appendChild(el);
+    });
+  }
+
+  // ── Build Board ────────────────────────────────────────
+  function buildBoard() {
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    COLUMNS.forEach(col => {
+      const colEl = document.createElement('div');
+      colEl.className = 'column';
+      colEl.dataset.status = col.id;
+
+      const colTasks = tasks
+        .filter(t => t.status === col.id)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      colEl.innerHTML = `
+        <div class="col-header">
+          <span class="col-icon">${col.icon}</span>
+          <span class="col-title">${col.label}</span>
+          <span class="col-count">${colTasks.length}</span>
+        </div>
+        <div class="col-divider"></div>
+        <div class="drop-zone" data-status="${col.id}"></div>
+      `;
+
+      board.appendChild(colEl);
+      const zone = colEl.querySelector('.drop-zone');
+      setupDropZone(zone);
+
+      if (colTasks.length === 0) {
+        zone.appendChild(emptyState());
+      } else {
+        colTasks.forEach(t => zone.appendChild(createCard(t)));
+      }
+    });
+  }
+
+  // ── Empty State ────────────────────────────────────────
+  function emptyState() {
+    const el = document.createElement('div');
+    el.className = 'empty-state';
+    el.innerHTML = `<span class="empty-icon">✦</span><p>Nothing here yet</p>`;
+    return el;
+  }
+
+  // ── Task Card ──────────────────────────────────────────
+  function createCard(task) {
+    const card = document.createElement('div');
+    card.className = 'task-card';
+    card.draggable = true;
+    card.dataset.id = task.id;
+
+    // Show a short version of the UUID as the ID label
+    const shortId = String(task.id).slice(0, 8);
+
+    card.innerHTML = `
+      <div class="task-title">${escapeHtml(task.title)}</div>
+      <div class="task-meta">
+        <span class="task-id">#${shortId}</span>
+        <button class="task-delete" data-id="${task.id}" title="Delete task">✕</button>
+      </div>
+    `;
+
+    card.querySelector('.task-delete').addEventListener('click', () => deleteTask(task.id));
+
+    card.addEventListener('dragstart', e => {
+      draggedId = task.id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(task.id));
+      setTimeout(() => card.classList.add('dragging'), 0);
+    });
+
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      removePlaceholder();
+      document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('drag-over'));
+      draggedId = null;
+      currentDropZone = null;
+    });
+
+    return card;
+  }
+
+  // ── Drop Zone Setup ────────────────────────────────────
+  function setupDropZone(zone) {
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      if (currentDropZone !== zone) {
+        document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('drag-over'));
+        zone.classList.add('drag-over');
+        currentDropZone = zone;
+      }
+
+      if (!placeholder) {
+        placeholder = document.createElement('div');
+        placeholder.className = 'drag-placeholder';
+        placeholder.style.pointerEvents = 'none';
+      }
+
+      const afterEl = getDragAfterElement(zone, e.clientY);
+      if (afterEl) {
+        if (placeholder.nextSibling !== afterEl) zone.insertBefore(placeholder, afterEl);
+      } else {
+        if (zone.lastElementChild !== placeholder) zone.appendChild(placeholder);
+      }
+    });
+
+    zone.addEventListener('drop', async e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+
+      const newStatus = zone.dataset.status;
+      const task = tasks.find(t => t.id == draggedId);
+      if (!task) { removePlaceholder(); return; }
+
+      // Determine insertion index from placeholder position
+      const allChildren = [...zone.children];
+      const phIndex = allChildren.indexOf(placeholder);
+      const cardsBefore = allChildren
+        .slice(0, phIndex)
+        .filter(el => el.classList.contains('task-card') && el.dataset.id != task.id);
+
+      removePlaceholder();
+
+      const statusChanged = task.status !== newStatus;
+      task.status = newStatus;
+
+      // Reorder this column
+      const colTasks = tasks
+        .filter(t => t.status === newStatus && t.id != task.id)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      colTasks.splice(cardsBefore.length, 0, task);
+      colTasks.forEach((t, i) => { t.order = i; });
+
+      // Optimistic UI
+      buildBoard();
+      if (statusChanged) showToast(`Moved to "${COLUMNS.find(c => c.id === newStatus).label}"`);
+
+      // Persist to Supabase
+      try {
+        const updates = colTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          order: t.order,
+          user_id: t.user_id,
+          created_at: t.created_at,
+        }));
+        const { error } = await db.from('tasks').upsert(updates);
+        if (error) throw error;
+      } catch (err) {
+        console.error('Update error:', err);
+        showToast('Save failed — reloading…', true);
+        await loadTasks();
+      }
+    });
+  }
+
+  function getDragAfterElement(container, y) {
+    const cards = [...container.querySelectorAll('.task-card:not(.dragging)')];
+    return cards.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) return { offset, element: child };
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  function removePlaceholder() {
+    if (placeholder) { placeholder.remove(); placeholder = null; }
+  }
+
+  // ── Add Task ───────────────────────────────────────────
+  async function addTask() {
+    const input = document.getElementById('new-task-input');
+    const btn   = document.getElementById('add-btn');
+    const title = input.value.trim();
+    if (!title) { showToast('Please enter a task title'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const newOrder = tasks.filter(t => t.status === 'todo').length;
+
+    try {
+      const { data, error } = await db
+        .from('tasks')
+        .insert({ title, status: 'todo', order: newOrder, user_id: currentUser.id })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      tasks.push(data);
+      input.value = '';
+      buildBoard();
+      showToast('Task added!');
+    } catch (err) {
+      console.error('Insert error:', err);
+      showToast('Could not add task. Try again.', true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '+ Add Task';
+    }
+  }
+
+  // ── Delete Task ────────────────────────────────────────
+  async function deleteTask(id) {
+    tasks = tasks.filter(t => t.id != id);
+    buildBoard();
+
+    try {
+      const { error } = await db.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+      showToast('Task deleted');
+    } catch (err) {
+      console.error('Delete error:', err);
+      showToast('Delete failed — reloading…', true);
+      await loadTasks();
+    }
+  }
+
+  // ── Toast ──────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = isError ? 'show error-toast' : 'show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // ── Utils ──────────────────────────────────────────────
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  document.getElementById('new-task-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  // ── Init ───────────────────────────────────────────────
+  loadTasks();
+</script>
+</body>
+</html>
