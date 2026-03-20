@@ -10,4 +10,4 @@ def index():
 def board():
     return render_template("board.html"), 200
 
-app.run("0.0.0.0", port=7652) 
+# app.run("0.0.0.0", port=7652) 
