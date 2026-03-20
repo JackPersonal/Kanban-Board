@@ -29,7 +29,6 @@
       flex-direction: column;
     }
 
-    /* ── Header ── */
     header {
       background: var(--indigo);
       padding: 18px 32px;
@@ -74,7 +73,6 @@
     #db-status.connected .status-dot { background: var(--teal); }
     #db-status.error     .status-dot { background: var(--coral); }
 
-    /* ── Toolbar ── */
     .toolbar {
       padding: 18px 32px 0;
       display: flex;
@@ -119,7 +117,6 @@
     .toolbar button:active  { transform: scale(0.97); }
     .toolbar button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
 
-    /* ── Board ── */
     .board {
       display: flex;
       gap: 20px;
@@ -128,7 +125,6 @@
       flex: 1;
     }
 
-    /* ── Column ── */
     .column {
       flex: 1;
       min-width: 240px;
@@ -185,7 +181,6 @@
       margin: 0 14px;
     }
 
-    /* ── Drop Zone ── */
     .drop-zone {
       flex: 1;
       padding: 14px 12px;
@@ -199,7 +194,6 @@
 
     .drop-zone.drag-over { background: rgba(129,178,154,0.15); }
 
-    /* ── Empty State ── */
     .empty-state {
       display: flex;
       flex-direction: column;
@@ -214,7 +208,6 @@
     .empty-state .empty-icon { font-size: 2rem; opacity: 0.5; }
     .empty-state p { font-size: 0.78rem; }
 
-    /* ── Loading State ── */
     .loading-state {
       display: flex;
       align-items: center;
@@ -232,7 +225,6 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Task Card ── */
     .task-card {
       background: var(--card-bg);
       border-radius: 10px;
@@ -293,7 +285,6 @@
 
     .task-delete:hover { color: var(--coral); background: rgba(224,122,95,0.1); }
 
-    /* ── Drag Placeholder ── */
     .drag-placeholder {
       border: 2px dashed var(--teal);
       border-radius: 10px;
@@ -308,7 +299,7 @@
       to   { opacity: 1; }
     }
 
-    /* ── Toast ── */
+    /* popups */
     #toast {
       position: fixed;
       bottom: 28px;
@@ -329,7 +320,8 @@
     #toast.show       { transform: translateX(-50%) translateY(0); }
     #toast.error-toast { background: var(--coral); }
 
-    /* ── Responsive ── */
+    /* @media: apply style rules conditionally based on the characteristics of the device or the 
+    environment displaying the web page */
     @media (max-width: 700px) {
       .board   { flex-direction: column; padding: 16px; }
       .column  { max-width: 100%; }
@@ -359,12 +351,11 @@
 <div id="toast"></div>
 
 <script>
-  // ── Supabase Setup ─────────────────────────────────────
+  // Supabase Setup
   const SUPABASE_URL = 'https://vkkrsxnbanujzdqkaqfr.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZra3JzeG5iYW51anpkcWthcWZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTc0MDIsImV4cCI6MjA4OTQ3MzQwMn0.IfDChzFqlh9FLoTc2ey4ICQtrpuiEekQA2G-0Zs6WvA';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // ── Columns Config ─────────────────────────────────────
   const COLUMNS = [
     { id: 'todo',        label: 'To Do',      icon: '○' },
     { id: 'in_progress', label: 'In Progress', icon: '◑' },
@@ -372,20 +363,19 @@
     { id: 'done',        label: 'Done',        icon: '●' },
   ];
 
-  // ── State ──────────────────────────────────────────────
+  //States
   let tasks = [];
   let currentUser = null;
   let draggedId = null;
   let placeholder = null;
   let currentDropZone = null;
 
-  // ── DB Status ──────────────────────────────────────────
+  //DB Status
   function setStatus(state, label) {
     document.getElementById('db-status').className = state;
     document.getElementById('db-status-label').textContent = label;
   }
 
-  // ── Auth: sign in anonymously (or resume existing session) ──
   /*
   ensureAuth() runs before every load. It checks if a session already exists in the browser, 
   and if not, it calls signInAnonymously(). Supabase stores the session in localStorage 
@@ -396,20 +386,21 @@
   The RLS policies are set in SQL editor in supabase so that users can only read/write rows where 
   user_id = auth.uid(). The code never has to filter manually, the database handles it
   */
+
   async function ensureAuth() {
-    // Check for an existing session first
+    //Check for an existing session first
     const { data: { session } } = await db.auth.getSession();
     if (session?.user) {
       currentUser = session.user;
       return;
     }
-    // No session — create a new anonymous one
+    //No session, so create a new anonymous one
     const { data, error } = await db.auth.signInAnonymously();
     if (error) throw error;
     currentUser = data.user;
   }
 
-  // ── Load from Supabase ─────────────────────────────────
+  //Load tasks from Supabase
   async function loadTasks() {
     showLoadingColumns();
     try {
@@ -433,7 +424,7 @@
     buildBoard();
   }
 
-  // ── Show spinners while loading ────────────────────────
+  //Show spinners while loading
   function showLoadingColumns() {
     const board = document.getElementById('board');
     board.innerHTML = '';
@@ -454,7 +445,6 @@
     });
   }
 
-  // ── Build Board ────────────────────────────────────────
   function buildBoard() {
     const board = document.getElementById('board');
     board.innerHTML = '';
@@ -489,7 +479,7 @@
     });
   }
 
-  // ── Empty State ────────────────────────────────────────
+  //Empty State
   function emptyState() {
     const el = document.createElement('div');
     el.className = 'empty-state';
@@ -497,14 +487,14 @@
     return el;
   }
 
-  // ── Task Card ──────────────────────────────────────────
+  //Create Task Card
   function createCard(task) {
     const card = document.createElement('div');
     card.className = 'task-card';
     card.draggable = true;
     card.dataset.id = task.id;
 
-    // Show a short version of the UUID as the ID label
+    //Show a short version of the UUID as the ID label
     const shortId = String(task.id).slice(0, 8);
 
     card.innerHTML = `
@@ -535,7 +525,7 @@
     return card;
   }
 
-  // ── Drop Zone Setup ────────────────────────────────────
+  //Drop Zone Setup
   function setupDropZone(zone) {
     zone.addEventListener('dragover', e => {
       e.preventDefault();
@@ -569,7 +559,7 @@
       const task = tasks.find(t => t.id == draggedId);
       if (!task) { removePlaceholder(); return; }
 
-      // Determine insertion index from placeholder position
+      //Determine insertion index from placeholder position
       const allChildren = [...zone.children];
       const phIndex = allChildren.indexOf(placeholder);
       const cardsBefore = allChildren
@@ -581,7 +571,7 @@
       const statusChanged = task.status !== newStatus;
       task.status = newStatus;
 
-      // Reorder this column
+      //Reorder column
       const colTasks = tasks
         .filter(t => t.status === newStatus && t.id != task.id)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -589,11 +579,11 @@
       colTasks.splice(cardsBefore.length, 0, task);
       colTasks.forEach((t, i) => { t.order = i; });
 
-      // Optimistic UI
+      //immediately updates the UI to reflect a successful action before the server confirms it
       buildBoard();
       if (statusChanged) showToast(`Moved to "${COLUMNS.find(c => c.id === newStatus).label}"`);
 
-      // Persist to Supabase
+      //Persist to Supabase
       try {
         const updates = colTasks.map(t => ({
           id: t.id,
@@ -627,7 +617,6 @@
     if (placeholder) { placeholder.remove(); placeholder = null; }
   }
 
-  // ── Add Task ───────────────────────────────────────────
   async function addTask() {
     const input = document.getElementById('new-task-input');
     const btn   = document.getElementById('add-btn');
@@ -661,7 +650,6 @@
     }
   }
 
-  // ── Delete Task ────────────────────────────────────────
   async function deleteTask(id) {
     tasks = tasks.filter(t => t.id != id);
     buildBoard();
@@ -677,7 +665,6 @@
     }
   }
 
-  // ── Toast ──────────────────────────────────────────────
   let toastTimer;
   function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
@@ -687,7 +674,7 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
   }
 
-  // ── Utils ──────────────────────────────────────────────
+  //prevent XSS6 here, supabase already protects from SQL injection
   function escapeHtml(str) {
     return str
       .replace(/&/g, '&amp;')
@@ -700,7 +687,7 @@
     if (e.key === 'Enter') addTask();
   });
 
-  // ── Init ───────────────────────────────────────────────
+  //Init
   loadTasks();
 </script>
 </body>
