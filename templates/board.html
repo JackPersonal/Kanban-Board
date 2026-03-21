@@ -351,8 +351,9 @@
 <div id="toast"></div>
 
 <script>
-  // Supabase Setup
+  //Supabase Setup
   const SUPABASE_URL = 'https://vkkrsxnbanujzdqkaqfr.supabase.co';
+  //public key (access restricted by RLS policies, service role key is never used)
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZra3JzeG5iYW51anpkcWthcWZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTc0MDIsImV4cCI6MjA4OTQ3MzQwMn0.IfDChzFqlh9FLoTc2ey4ICQtrpuiEekQA2G-0Zs6WvA';
   const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
